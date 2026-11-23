@@ -3,17 +3,123 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>Vista Bay — Open World</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1c2c; font-family: 'Segoe UI', Arial, sans-serif; }
   #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; z-index: 5; display: none; }
+  #hud.on { display: block; }
+  .panel { background: rgba(8, 20, 32, 0.62); border: 1px solid rgba(255,255,255,0.22); border-radius: 8px; padding: 8px 12px; }
+  #topleft { position: absolute; top: 12px; left: 12px; min-width: 240px; }
+  #stars { font-size: 26px; letter-spacing: 4px; color: #ffd23f; text-shadow: 0 0 6px #000; line-height: 1; }
+  #stars .off { color: rgba(255,255,255,0.28); }
+  #cash { font-size: 22px; font-weight: 700; color: #7dff9a; text-shadow: 0 1px 3px #000; margin-top: 4px; }
+  #healthwrap { margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+  #healthbar { width: 150px; height: 12px; background: rgba(0,0,0,0.55); border: 1px solid #fff3; border-radius: 6px; overflow: hidden; }
+  #healthfill { height: 100%; width: 100%; background: linear-gradient(90deg, #37e05a, #9dff6e); }
+  #ammo { font-size: 15px; font-weight: 600; }
+  #minimap { position: absolute; top: 12px; right: 12px; border: 2px solid rgba(255,255,255,0.35); border-radius: 50%; background: #0a2536; box-shadow: 0 0 12px rgba(0,0,0,0.5); }
+  #objective { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: 520px; text-align: center; }
+  #objtitle { font-size: 17px; font-weight: 800; color: #ffd23f; text-shadow: 0 1px 3px #000; }
+  #objtext { font-size: 14px; text-shadow: 0 1px 3px #000; margin-top: 2px; }
+  #objdist { font-size: 13px; color: #9fd8ff; font-weight: 700; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); display: none; }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { left: 0; top: 8px; width: 18px; height: 2px; }
+  #hint { position: absolute; left: 12px; bottom: 12px; font-size: 12.5px; line-height: 1.55; color: #dfeefc; text-shadow: 0 1px 2px #000; }
+  #speed { position: absolute; right: 16px; bottom: 14px; font-size: 26px; font-weight: 800; text-shadow: 0 1px 4px #000; display: none; }
+  #speed small { font-size: 13px; font-weight: 600; }
+  #toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); font-size: 19px; font-weight: 800; color: #ffe27a; text-shadow: 0 2px 5px #000; text-align: center; opacity: 0; transition: opacity 0.25s; white-space: nowrap; }
+  #wasted { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; background: rgba(20,0,0,0.55); z-index: 9; color: #fff; }
+  #wasted h1 { font-size: 64px; letter-spacing: 10px; margin: 0; color: #ff5a4e; text-shadow: 0 0 24px #000; }
+  #wasted p { font-size: 18px; }
+  #bigmap { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(4, 12, 20, 0.82); z-index: 8; }
+  #bigmap canvas { border: 2px solid #ffffff55; border-radius: 10px; background: #0a2536; }
+  #bigmap .cap { position: absolute; bottom: 24px; color: #cfe8ff; font-size: 14px; text-shadow: 0 1px 3px #000; }
+  /* Menus */
+  .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10;
+    background: linear-gradient(160deg, rgba(6,28,46,0.88), rgba(20,60,90,0.55) 55%, rgba(255,150,60,0.35)); }
+  .card { width: 620px; max-width: 92vw; max-height: 92vh; overflow: auto; background: rgba(6, 18, 30, 0.92); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 14px; padding: 26px 32px; color: #eef6ff; box-shadow: 0 18px 60px rgba(0,0,0,0.6); }
+  .card h1 { margin: 0; font-size: 52px; letter-spacing: 2px; color: #ffd23f; text-shadow: 0 3px 0 #b3541e, 0 6px 18px #000; }
+  .card h2 { margin: 0 0 4px; font-size: 26px; color: #ffd23f; }
+  .card .sub { color: #9fd8ff; font-size: 15px; margin: 2px 0 14px; }
+  .card p { font-size: 14.5px; line-height: 1.55; color: #d7e9f8; }
+  .card .controls { font-size: 13.5px; line-height: 1.8; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 10px 14px; }
+  .card .controls b { color: #ffd23f; }
+  .btn { pointer-events: auto; cursor: pointer; display: inline-block; margin: 6px 8px 0 0; padding: 12px 26px; font-size: 17px; font-weight: 800;
+    color: #10202e; background: linear-gradient(180deg, #ffd23f, #f5a623); border: none; border-radius: 9px; box-shadow: 0 4px 0 #b3541e; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #b3541e; }
+  .btn.ghost { background: rgba(255,255,255,0.12); color: #eef6ff; box-shadow: 0 4px 0 rgba(255,255,255,0.18); }
+  #menu { display: flex; }
+  #pause { display: none; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
+<canvas id="game" aria-label="Vista Bay: an open-world crime game. Explore the city on foot or by car, complete missions, evade the police."></canvas>
 <p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud">
+  <div id="topleft" class="panel">
+    <div id="stars"></div>
+    <div id="cash">$0</div>
+    <div id="healthwrap"><div id="healthbar"><div id="healthfill"></div></div><span id="ammo">🔫 12 / 60</span></div>
+  </div>
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="objective" class="panel">
+    <div id="objtitle"></div>
+    <div id="objtext"></div>
+    <div id="objdist"></div>
+  </div>
+  <div id="crosshair"></div>
+  <div id="hint">WASD move · Mouse look · Shift run · E enter / exit car · F punch · Click shoot · R reload · M map · P pause</div>
+  <div id="speed"><span id="speedval">0</span> <small>km/h</small></div>
+  <div id="toast"></div>
+</div>
+
+<div id="wasted"><h1 id="wastedtitle">WASTED</h1><p id="wastedsub"></p></div>
+
+<div id="bigmap"><canvas id="bigmapcanvas" width="640" height="640"></canvas><div class="cap">VISTA BAY — press M or click to close · yellow = mission · blue = you · red = police</div></div>
+
+<div id="menu" class="screen">
+  <div class="card">
+    <h1>VISTA BAY</h1>
+    <div class="sub">A sun-soaked open-world crime story · an original game, not affiliated with any other series</div>
+    <p><b>Mara Voss</b> runs this city from the Golden Palm Casino. Her rival <b>Dario Kane</b> wants it back, and
+    <b>Rook</b> — your hacker friend — has a plan to take Kane down for good. Nine missions. One bay. No rules but yours.</p>
+    <p>Explore 600×600 m of Vista Bay on foot or by car: downtown towers, Palm Avenue, the beach and pier, the lighthouse,
+    the hospital, the park, the airport runway and the port. Steal cars, outrun the Vista Bay Police, and climb the wanted ladder from 1 to 5 stars.</p>
+    <div class="controls">
+      <b>W A S D</b> move / drive &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>Shift</b> run &nbsp;·&nbsp; <b>E</b> enter / exit car<br>
+      <b>Left click</b> shoot &nbsp;·&nbsp; <b>F</b> punch &nbsp;·&nbsp; <b>R</b> reload &nbsp;·&nbsp; <b>Space</b> handbrake (in car)<br>
+      <b>M</b> big map &nbsp;·&nbsp; <b>P</b> / <b>Esc</b> pause &nbsp;·&nbsp; progress auto-saves to this browser
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn" id="btnplay">▶ Play Vista Bay</button>
+      <button class="btn ghost" id="btncontinue" style="display:none">Continue — mission <span id="contmission">1</span></button>
+      <button class="btn ghost" id="btnnew">New Game</button>
+    </div>
+    <p style="font-size:12px;color:#8fb4cc">Plays offline in desktop Chrome. No accounts, no network, no downloads.</p>
+  </div>
+</div>
+
+<div id="pause" class="screen">
+  <div class="card" style="width:460px">
+    <h2>Paused</h2>
+    <p id="pausestats"></p>
+    <div>
+      <button class="btn" id="btnresume">Resume</button>
+      <button class="btn ghost" id="btnrestart">Restart Mission</button>
+      <button class="btn ghost" id="btnquit">Save &amp; Main Menu</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
